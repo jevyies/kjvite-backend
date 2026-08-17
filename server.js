@@ -4,6 +4,7 @@ const Database = require('better-sqlite3');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const path = require('path');
+const QRCode = require('qrcode');
 
 const app = express();
 app.use(cors());
@@ -31,6 +32,16 @@ db.exec(`CREATE TABLE IF NOT EXISTS admin (
     username TEXT PRIMARY KEY,
     password TEXT NOT NULL
 )`);
+
+try {
+    // Replace 'plus_ones' and 'INTEGER DEFAULT 0' with your desired column name and type
+    db.exec(`ALTER TABLE guests ADD COLUMN tableNo INTEGER DEFAULT 0`);
+} catch (err) {
+    // SQLite throws an error if the column already exists; we catch and ignore it
+    if (!err.message.includes('duplicate column name')) {
+        console.error("Failed to alter table:", err.message);
+    }
+}
 
 // Seed default admin if empty (Username: admin, Password: password123)
 const adminExists = db.prepare('SELECT 1 FROM admin WHERE username = ?').get('admin');
@@ -122,16 +133,53 @@ app.delete('/api/admin/guests/:id', authenticateToken, (req, res) => {
 
 // 7. Admin: Update a guest name
 app.patch('/api/admin/guests/:id', authenticateToken, (req, res) => {
-    const { name } = req.body;
+    const { name, tableNo } = req.body;
     if (!name || !name.trim()) {
         return res.status(400).json({ error: 'Name is required' });
     }
     try {
-        const result = db.prepare('UPDATE guests SET name = ? WHERE id = ?').run(name.trim(), req.params.id);
+        const result = db.prepare('UPDATE guests SET name = ?, tableNo = ? WHERE id = ?').run(name.trim(), tableNo || '', req.params.id);
         if (result.changes === 0) return res.status(404).json({ error: 'Guest not found' });
-        res.json({ success: true, id: req.params.id, name: name.trim() });
+        res.json({ success: true, id: req.params.id, name: name.trim(), tableNo: tableNo || '' });
     } catch (err) {
         res.status(500).json({ error: err.message });
+    }
+});
+// 8. Admin: Generate QR Code for a guest
+app.get('/api/guests/:token/qrcode', async (req, res) => {
+    const { token } = req.params;
+
+    // 1. Verify that the guest exists in SQLite
+    const guest = db.prepare('SELECT name FROM guests WHERE token = ?').get(token);
+    if (!guest) {
+        return res.status(404).json({ error: 'Guest not found' });
+    }
+
+    try {
+        // 2. Define the payload for the QR code (URL to guest page or raw token)
+        // Adjust the base URL to match your frontend deployment URL if needed
+        const qrContent = token; 
+
+        // 3. Generate PNG buffer
+        const qrBuffer = await QRCode.toBuffer(qrContent, {
+            type: 'png',
+            width: 300,
+            margin: 2,
+            color: {
+                dark: '#000000',
+                light: '#ffffff'
+            }
+        });
+
+        // 4. Set headers to prompt a file download on the browser
+        const safeName = guest.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Content-Disposition', `attachment; filename="qrcode-${safeName}.png"`);
+
+        // 5. Stream the buffer back as response
+        res.send(qrBuffer);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to generate QR code' });
     }
 });
 
