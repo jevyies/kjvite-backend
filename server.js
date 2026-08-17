@@ -67,7 +67,7 @@ app.get('/api/guests/:token', (req, res) => {
 // 2. RSVP Update
 app.post('/api/guests/:token/rsvp', (req, res) => {
     const { status } = req.body;
-    if (!['accepted', 'rejected'].includes(status)) {
+    if (!['accepted', 'rejected', 'pending'].includes(status)) {
         return res.status(400).json({ error: 'Invalid status' });
     }
     try {
