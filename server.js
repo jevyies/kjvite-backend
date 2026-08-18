@@ -182,6 +182,14 @@ app.get('/api/guests/:token/qrcode', async (req, res) => {
         res.status(500).json({ error: 'Failed to generate QR code' });
     }
 });
+app.get('/api/guests/reset/tableNo', async (req, res) => {
+    try {
+        const result = db.prepare('UPDATE guests SET tableNo = NULL').run();
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
 // Bind to Railway's dynamic port, using 3000 as a fallback for your local computer
 const PORT = process.env.PORT || 3000;
