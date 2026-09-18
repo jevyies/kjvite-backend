@@ -85,7 +85,7 @@ app.post('/api/admin/login', (req, res) => {
     if (!row || !bcrypt.compareSync(password, row.password)) {
         return res.status(401).json({ error: 'Invalid credentials' });
     }
-    const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: '1d' });
+    const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token });
 });
 
@@ -158,7 +158,7 @@ app.get('/api/guests/:token/qrcode', async (req, res) => {
     try {
         // 2. Define the payload for the QR code (URL to guest page or raw token)
         // Adjust the base URL to match your frontend deployment URL if needed
-        const qrContent = token; 
+        const qrContent = token;
 
         // 3. Generate PNG buffer
         const qrBuffer = await QRCode.toBuffer(qrContent, {
